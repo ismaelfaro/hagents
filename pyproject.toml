@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hagents"
+version = "0.1.0"
+description = "Hierarchical agents: a pyramid of folder-bound agents where each level sees and steers the levels below it."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+# LoomLoop is the coordinator (clock, bus, scheduler). Pure stdlib.
+dependencies = ["loomloop @ git+https://github.com/ismaelfaro/loomloop"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+hagent = "hagents.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["hagents*"]
+
+[tool.setuptools.package-data]
+hagents = ["templates/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

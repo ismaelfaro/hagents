@@ -1,0 +1,25 @@
+name = "engineering"
+role = "Head of Engineering"
+runtime = "nanoloop"
+charter = """
+Own the product's technology: what gets built, in what order, and how well.
+Split work between the platform and product teams, review what they deliver,
+and report progress, risks and estimates to the CEO.
+"""
+
+[access]
+below = "read"
+control = "read"
+
+[mail]
+# Teams coordinate through the head of engineering.
+peers = false
+
+[system]
+name = "eng-admin"
+role = "Engineering agent administrator"
+runtime = "nanoloop"
+charter = """
+Administer the configuration of the engineering teams' agents: charters, models,
+new teams. Changes are proposals the owner applies. You never see their work.
+"""
