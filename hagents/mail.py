@@ -120,6 +120,15 @@ def deliver_file(home: Path, env: Envelope) -> Path:
     return f
 
 
+def record_sent(home: Path, env: Envelope) -> None:
+    """Keep the sender's copy in mail/sent/, so whoever is above can read whole threads."""
+    box = _safe_dir(home / "mail" / "sent")
+    f = box / f"{env.id}-to-{env.recipient}.md"
+    tmp = box / f".{f.name}.tmp"
+    tmp.write_text(env.render())
+    os.replace(tmp, f)
+
+
 def archive_inbox(home: Path) -> None:
     """After a turn, move what the agent was shown from inbox/ to read/."""
     box = _safe_dir(home / "mail" / "inbox")
@@ -158,6 +167,8 @@ class PolicyBus(MessageBus):
         self.audit = audit
         self._log = log
         self.bounced = 0
+        # Units the owner wrote to directly this run: they may answer the owner.
+        self.owner_threads: set = set()
 
     def publish(self, msg: Message) -> int:
         env = msg.payload
@@ -169,8 +180,12 @@ class PolicyBus(MessageBus):
         if env.kind == "ack" and env.recipient == LOOM:
             # Only NodeLoop (host code) creates acks; an agent's outbox is always "mail".
             ok, reason = True, "rollup ack to the conductor"
+        elif env.recipient == OWNER and env.sender in self.owner_threads:
+            ok, reason = True, "reply in a thread the owner opened"
         else:
             ok, reason = can_send(self.org, env.sender, env.recipient)
+            if ok and env.sender == OWNER:
+                self.owner_threads.add(env.recipient)
         if ok and env.hops > MAX_HOPS and env.sender != LOOM:
             ok, reason = False, f"hop limit {MAX_HOPS} reached (message loop?)"
         self.audit.record(env, "delivered" if ok else "refused", reason)

@@ -138,7 +138,8 @@ def cmd_plan(args) -> None:
         a = org.get(name)
         kind = "system agent" if isinstance(a, SystemAgent) else "unit"
         print(f"{a.name} ({kind}, {a.runtime})")
-        for m in mounts_for(org, a):
+        from .runtime import DockerRuntime
+        for m in mounts_for(org, a, DockerRuntime.base_for(a)):
             print(f"  {m.mode}  {m.container:<12} <- {m.host.relative_to(org.root)}")
         print(f"  mail  {', '.join(contacts(org, a))}")
         print()
@@ -271,6 +272,8 @@ def main(argv=None) -> None:
         s.set_defaults(fn=fn)
 
     args = p.parse_args(argv)
+    # Progress lines should appear as turns happen, also when piped to a file.
+    sys.stdout.reconfigure(line_buffering=True)
     try:
         args.fn(args)
     except OrgError as e:

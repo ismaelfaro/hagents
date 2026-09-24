@@ -47,24 +47,26 @@ class Mount:
 
 # --- filesystem ---------------------------------------------------------------
 
-def mounts_for(org: Org, agent: AnyAgent) -> List[Mount]:
+def mounts_for(org: Org, agent: AnyAgent, base: str = HOME) -> List[Mount]:
+    """``base`` is where the agent's folder appears; everything else nests inside it."""
+    below, control = f"{base}/units", f"{base}/org"
     if isinstance(agent, Node):
         wp = org.work_path(agent)
-        out = [Mount(wp, HOME, "rw")]
+        out = [Mount(wp, base, "rw")]
         if agent.children:
             # Nested bind: the inner mount wins, so units/ can be read-only
             # inside an otherwise writable home.
-            out.append(Mount(wp / "units", BELOW, "rw" if agent.below == "write" else "ro"))
+            out.append(Mount(wp / "units", below, "rw" if agent.below == "write" else "ro"))
         if agent.control != "none" and agent.children:
-            out.append(Mount(org.control_path(agent) / "units", CONTROL,
+            out.append(Mount(org.control_path(agent) / "units", control,
                              "rw" if agent.control == "write" else "ro"))
         return out
     # A system agent: its own memory, plus read-write config of the units below
     # its principal. Its principal's own node.toml is NOT in scope: nobody
     # edits the config of their own level, only of the levels below.
     principal = agent.principal
-    out = [Mount(org.system_home(agent), HOME, "rw")]
-    out.append(Mount(org.control_path(principal) / "units", CONTROL, "rw"))
+    out = [Mount(org.system_home(agent), base, "rw")]
+    out.append(Mount(org.control_path(principal) / "units", control, "rw"))
     return out
 
 
@@ -105,7 +107,7 @@ def ensure_dirs(org: Org, agent: AnyAgent) -> None:
             raise OrgError(f"{p} is a symlink; refusing to use it")
         p.mkdir(parents=True, exist_ok=True)
     home = org.home(agent)
-    for sub in ("mail/inbox", "mail/outbox", "mail/read", "Memory", "Skills"):
+    for sub in ("mail/inbox", "mail/outbox", "mail/read", "mail/sent", "Memory", "Skills"):
         d = home / sub
         if d.is_symlink():
             raise OrgError(f"{d} is a symlink; refusing to use it")

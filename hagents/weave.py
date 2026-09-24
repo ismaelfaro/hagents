@@ -26,7 +26,7 @@ from typing import Callable, Dict, List, Optional
 from loomloop import Loom, NanoLoop, Step
 from loomloop.message import Message
 
-from .mail import Audit, Envelope, PolicyBus, archive_inbox, collect_outbox, deliver_file, parse_message
+from .mail import Audit, Envelope, PolicyBus, archive_inbox, collect_outbox, deliver_file, record_sent
 from .policy import LOOM, OWNER, ensure_dirs
 from .runtime import DockerRuntime, MockRuntime, runtime_for
 from .tree import AnyAgent, Node, Org
@@ -62,13 +62,16 @@ class NodeLoop(NanoLoop):
     async def setup(self, ctx) -> None:
         ensure_dirs(self.org, self.agent)
         self.pending = _leftovers(self.org.home(self.agent))
+        if any(e.sender == OWNER for e in self.pending):
+            ctx.loom.bus.owner_threads.add(self.name)  # still an open thread with the owner
 
     async def _turn(self, ctx, inbox: List[Envelope], mode: str) -> None:
         home = self.org.home(self.agent)
         self._log(f"[t{ctx.tick:>3}] {self.name:<14} turn {self.turns + 1} ({mode}, {len(inbox)} msg)")
         res = await self.runtime.run_turn(self.org, self.agent, inbox, mode)
         self.turns += 1
-        archive_inbox(home)
+        if res.ok:
+            archive_inbox(home)  # a failed turn keeps its mail for the next run
         outgoing = list(res.extra_outbox)
         for to, subject, body, problem in collect_outbox(home):
             if problem:
@@ -79,8 +82,9 @@ class NodeLoop(NanoLoop):
             self._log(f"         {self.name}: turn failed: {res.log}")
         hops = max((e.hops for e in inbox), default=0) + 1
         for to, subject, body in outgoing:
-            ctx.send("mail", Envelope(sender=self.name, recipient=to, subject=subject,
-                                      body=body, hops=hops), to=to)
+            env = Envelope(sender=self.name, recipient=to, subject=subject, body=body, hops=hops)
+            record_sent(home, env)
+            ctx.send("mail", env, to=to)
 
     async def step(self, ctx) -> Step:
         new = [m.payload for m in ctx.recv_all() if isinstance(m.payload, Envelope)]

@@ -28,7 +28,7 @@ from typing import Dict, Iterator, List, Optional, Union
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 RESERVED = {"owner", "all", "loom", "units", "system"}
 
-RUNTIMES = {"nanoloop", "mock", "command"}
+RUNTIMES = {"nanoloop", "hermes", "mock", "command"}
 BELOW = {"read", "write"}
 CONTROL = {"none", "read", "write"}
 

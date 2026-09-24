@@ -30,14 +30,26 @@ hagent rollup                                    # STATUS.md refreshed bottom-up
 hagent log                                       # every delivery and refusal
 ```
 
-## With real agents (nanoLoop)
+## With real agents
+
+nanoLoop (the default runtime):
 
 ```bash
 docker build -t hagents-nanoloop:local docker/nanoloop
-export OPENROUTER_API_KEY=sk-or-...  HARNESS_MODEL=anthropic/claude-sonnet-5
+export OPENROUTER_API_KEY=sk-or-...  HARNESS_MODEL=z-ai/glm-5.2:free
 hagent init ~/acme                               # runtime = "nanoloop" everywhere
 cd ~/acme/work/units/sales && hagent ask "Draft our pricing FAQ"   # targets the folder you are in
 ```
+
+Hermes, for any unit: set `runtime = "hermes"` in its `node.toml`, then `hagent apply`.
+It uses AgentDorm's `hermes-web:local` image (`agentdorm build hermes`):
+
+```bash
+export HERMES_PROVIDER=openrouter HERMES_MODEL=poolside/laguna-s-2.1:free
+hagent ask finance "What is our runway?"
+```
+
+A turn that fails (model error, timeout) keeps its mail; `hagent run` retries it.
 
 ## Changing the organisation
 

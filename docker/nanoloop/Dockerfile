@@ -11,6 +11,8 @@ RUN apt-get update \
 
 ARG NANOLOOP_REF=main
 RUN pip install --no-cache-dir "nanoloop @ git+https://github.com/ismaelfaro/nanoLoop@${NANOLOOP_REF}"
+COPY patch_resolve.py /tmp/patch_resolve.py
+RUN python /tmp/patch_resolve.py && rm /tmp/patch_resolve.py
 
 RUN useradd -m -u 1000 agent
 USER agent

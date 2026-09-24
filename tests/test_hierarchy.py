@@ -185,3 +185,52 @@ def test_unit_name_must_match_folder(org_root):
     f.write_text(f.read_text().replace('name = "sales"', 'name = "ceo2"'))
     with pytest.raises(OrgError, match="folder name"):
         load(org_root, live=True)
+
+
+def test_unit_can_answer_the_owner_who_wrote_to_it(org_root):
+    w = Weave(load(org_root), log=quiet)
+    w.post("finance", "runway", "What is our runway?")
+    run(w)
+    assert [e.sender for e in w.owner.received] == ["finance"]
+    assert w.loom.bus.bounced == 0
+
+
+def test_owner_thread_does_not_open_other_units(org_root):
+    org = load(org_root)
+    out = org.work_path(org.get("sales")) / "mail" / "outbox"
+    (out / "a.md").write_text("To: owner\nSubject: hi\n\nunsolicited")
+    w = Weave(org, log=quiet)
+    w.post("finance", "runway", "What is our runway?")
+    w.post("ceo", "x", "ping sales")   # sales gets a turn via the ceo, not the owner
+    run(w)
+    assert "sales" not in [e.sender for e in w.owner.received]
+
+
+def test_manager_can_read_its_reports_threads(org_root):
+    org = load(org_root)
+    w = Weave(org, log=quiet)
+    w.post("ceo", "Q4 plan", "Prepare the Q4 launch plan")
+    run(w)
+    # product's sent mail sits inside engineering's read-only view of units/
+    sent = org.work_path(org.get("product")) / "mail" / "sent"
+    assert any(p.read_text().startswith("From: product\nTo: engineering") for p in sent.iterdir())
+    assert org.work_path(org.get("engineering")) in sent.parents
+
+
+def test_failed_turn_keeps_its_mail(org_root):
+    from hagents.runtime import TurnResult
+
+    class Broken:
+        async def run_turn(self, org, agent, inbox, mode):
+            return TurnResult(ok=False, log="model down")
+
+    org = load(org_root)
+    w = Weave(org, log=quiet)
+    w.loops["finance"].runtime = Broken()
+    w.post("finance", "runway", "What is our runway?")
+    run(w)
+    inbox = org.work_path(org.get("finance")) / "mail" / "inbox"
+    assert len(list(inbox.glob("*.md"))) == 1
+    w2 = Weave(load(org_root), log=quiet)   # next run: mock brain answers it
+    run(w2)
+    assert w2.loops["finance"].turns == 1

@@ -96,10 +96,18 @@ Docker.
 | Isolation | **AgentDorm** (DDSH) | Supplies the room model (one container per agent), the folder-as-workspace contract and the heavy runtimes (Hermes, OpenClaw, dsh, OpenHands). Hagents reuses the pattern: a throwaway `docker run` per turn with exactly the mounts `policy.py` computes. The container is the sandbox, taking the role OpenShell plays in nanoLoop's own `run.sh`. |
 | Hierarchy | **Hagents** | Contains the tree loader, policy compiler, policy bus, runtimes and the `hagent` CLI. |
 
-Runtimes are set per agent in `node.toml`: `nanoloop`, `mock` (deterministic,
-offline) or `command` (any allow-listed image, for example a Hermes one-shot
-`hermes chat -Q -q {prompt}`). A company can mix them. A cheap nanoLoop can run
-a team while a Hermes agent with a long-lived memory runs the CEO seat.
+Runtimes are set per agent in `node.toml`, and a company can mix them. A cheap
+nanoLoop can run a team while Hermes runs the CEO seat.
+
+| runtime | what runs a turn | notes |
+|---|---|---|
+| `nanoloop` | `nanoloop new <prompt>` in `hagents-nanoloop:local` | Folder at `/node`. The image patches nanoLoop so absolute paths inside the workdir are kept (upstream re-roots `/node/x` to `/node/node/x`). |
+| `hermes` | `hermes chat -Q --yolo -t <toolsets> -q <prompt>` in AgentDorm's `hermes-web:local` | Folder at `/workspace` (Hermes pins its terminal there). Its memory and sessions go in the folder's `.hermes/`, where a manager can read them. Its Python tree goes in a per-agent `.hermes-opt/` that no other agent shares. Toolsets default to `terminal,file,memory,skills,todo,session_search`: a one-shot turn has nobody to clarify with, and delegation and scheduling are the pyramid's job. |
+| `command` | any allow-listed image and command | `{prompt}` and `{prompt_file}` are substituted. |
+| `mock` | a deterministic Python stand-in | For tests and offline runs. |
+
+A failed turn (model error, timeout) keeps its mail in `mail/inbox/`, and the
+next `hagent run` retries it.
 
 ## 5. Orchestration patterns
 
@@ -115,9 +123,11 @@ solves the apex's context problem: the CEO can't read a whole company, but it
 can read four summaries and drill into any folder when it needs to. Each level
 compresses what is below it.
 
-**Escalation.** Only the apex (and its system agent) can reach the owner.
-Everyone else escalates to their parent. A skip-level message bounces with the
-reason, and the bounce teaches the agent the route.
+**Escalation.** Only the apex (and its system agent) can reach the owner
+unprompted. Everyone else escalates to their parent. A skip-level message
+bounces with the reason, and the bounce teaches the agent the route. If the
+owner writes to a unit directly (`hagent ask finance ...`), that unit may answer
+the owner, including in a later run while the message is still waiting.
 
 **Peers and cousins.** Siblings talk directly only when their parent sets
 `mail.peers = true`. Cousins such as product and sales never talk directly: the
@@ -163,13 +173,12 @@ and its manager can still read it. (`test_system_agent_proposes_and_owner_applie
 
 ## 8. Roadmap
 
-1. Build `hagents-nanoloop:local` and run the small company with real models
-   (`OPENROUTER_API_KEY`).
-2. Add a Hermes `command` preset with long-lived state in `.hagent/state/<agent>`.
+1. ~~Build `hagents-nanoloop:local` and run real models~~ (done: nanoLoop and
+   Hermes turns verified with free OpenRouter models).
+2. ~~Hermes runtime~~ (done: `runtime = "hermes"`).
 3. Run a scheduled rollup (cron or `/loop`) so every level's STATUS.md stays
    fresh, and add a digest to the owner.
-4. Keep a sent copy in the sender's `mail/sent/`. Received mail already lands
-   in `mail/read/`. With both, managers can audit whole threads of their
-   reports, which the pyramid entitles them to.
+4. ~~Sent copies~~ (done: `mail/sent/` next to `mail/read/`, so managers can
+   audit whole threads of their reports).
 5. Add a web view: the pyramid, each unit's STATUS.md, pending config diffs and
    the mail flow.
